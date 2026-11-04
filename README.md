@@ -1,5 +1,10 @@
 # gama-offline
 
+<p align="center"><img src="assets/logo.svg" width="96" alt="GAMA logo"></p>
+
+[![Version](https://img.shields.io/badge/version-v0.1.0-22d3ee)](https://github.com/gamai-io/gama-offline/releases)
+
+
 Deterministic **offline layer that saves LLM calls**: response cache, case-based
 reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib only, SQLite.
 
