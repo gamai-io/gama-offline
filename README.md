@@ -42,6 +42,6 @@ Env: `ANSWER_CACHE_DB`, `ANSWER_CACHE_TTL`, `GAMACODE_HOME`, `GAMA_SKILLS_DIR`,
 `python3 -m unittest discover -s tests -v`
 
 ## Evidence
-LUMI MI250X guard (pre-LLM): false_success 19.7% raw -> 0/1,000 and 0/10,000 PASS,
+LUMI MI250X guard (pre-LLM): false_success 19.7% raw -> 0/1,000; 10k rerun (2026-11-04) 1/10,000 (FAIL) — earlier 0/10,000 not reproduced,
 114.4 rps @ CONC=512. Repos: gama-fastpath, gama-retrieval, gama-shard.
 Related DOI: 10.5281/zenodo.23933835. Apache-2.0.
