@@ -12,7 +12,7 @@ reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib only, SQLite.
 
 | module | what it saves | measured |
 |---|---|---|
-| `cache.py` | identical repeat queries -> no LLM | ~0.7 ms vs ~4.75 s + cost; 72% of real queries repeat |
+| `cache.py` | identical repeat queries -> no LLM | get 1.7 ms (median 0.5 ms) vs ~4.75 s + cost; 66.7% hit on cacheable queries, **100% warm**, 0% on fresh/stock/price by design — `bench/bench_cache.py` |
 | `cbr.py` | proven recipes for similar goals | find 7–9 ms; hit@3 1.0 (synthetic 1000) |
 | `skills.py` | direct skill match before model | index 4.3k skills; warm 1.4–4.5 ms |
 | `pretriage.py` | blocks catastrophic/high-risk before LLM | 70–206 µs; `rm -rf /` -> skip LLM |
@@ -20,6 +20,20 @@ reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib only, SQLite.
 Safety rules (same as production): never cache fresh/actionable answers; never
 cache state-changing tool results; per-session keys; TTL 900 s; risk gate fails
 open (never blocks normal work).
+
+### What this does NOT save (read before quoting a number)
+- **No cross-user reuse.** Keys include the session id, so two different users
+  asking the same question both pay for a model call. Measured hit rate is
+  therefore *per session*, not per company.
+- **Fresh data is never cached.** Stock levels, prices, balances, "today",
+  "current" and any state-changing tool result go to the model every time.
+  `ERP_FRESH_V2` covers `zalihe / lager / na stanju / saldo / dugovanja /
+  količina / zadnja cijena` — before that guard, `stanje zaliha …` was being
+  served from cache, which is wrong in an ERP.
+- **TTL is 900 s.** Repeats spread over a day mostly miss.
+- Savings are `hit_rate × calls × cost_per_call`; they are only as good as the
+  measurement of *your* traffic. Do not quote 66.7% as a company-level saving.
+
 
 ## Use
 ```python

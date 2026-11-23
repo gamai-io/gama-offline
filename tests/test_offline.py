@@ -25,6 +25,16 @@ class T(unittest.TestCase):
     def test_cache_fresh_guard(self):
         self.assertTrue(cache.fresh("koliko kosta XHD211"))
         self.assertFalse(cache.cacheable({"say": "ok"}, "koliko kosta XHD211"))
+    def test_erp_fresh_guard_v2(self):
+        # ERP_FRESH_V2: stanje/cijene/zalihe se nikad ne smiju servirati iz kesa
+        for q in ("stanje zaliha za 100011", "lager 100011", "koliko imamo na stanju",
+                  "saldo kupca 211008", "dugovanja kupaca", "zadnja cijena XHD211",
+                  "trenutna cijena mixera", "kolicina na skladistu"):
+            self.assertTrue(cache.fresh(q), q)
+        # a objasnjenja/procedure ostaju kesabilna
+        for q in ("kako se kontira ulaz robe", "objasni sta je false success"):
+            self.assertFalse(cache.fresh(q), q)
+
     def test_cbr(self):
         cbr.DB = os.path.join(self.tmp, "cases.db")
         cbr.add("napravi ponudu za kupca", [{"tool": "ponuda"}], ok=True)

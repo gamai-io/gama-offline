@@ -36,7 +36,11 @@ _WS = re.compile(r"\s+")
 _FRESH = re.compile(
     r"(?i)(pretrazi|search|cijena|cijenu|cijene|najnovij|najnove|online|na internetu|na netu|"
     r"koliko ko[s\u0161]ta|trenutno|danas|ju[c\u010d]e|sada|sada[s\u0161]nj|kurs|prognoza|vremenska|"
-    r"stanje na tr[z\u017ei]|berza|akcije|kripto|nadzor|prozor|screenshot|prebaci|ekran|flota)")  # NADZOR_FRESH_V1
+    r"stanje na tr[z\u017ei]|berza|akcije|kripto|nadzor|prozor|screenshot|prebaci|ekran|flota|"
+    # ERP_FRESH_V2: zalihe/stanje/saldo se mijenjaju svakim ulazom/izlazom -> nikad iz kesa
+    r"zalih|lager|na stanju|stanje robe|stanje artikla|saldo|dugovanj|potra[z\u017e]ivanj|"
+    r"koli[c\u010d]in|kolicin|zadnji ulaz|zadnja cijena|trenutna cijena)")  # NADZOR_FRESH_V1 + ERP_FRESH_V2
+
 
 # CACHE_MULTI_GUARD: visekoracni upit (i/pa/zatim + akcioni glagol) -> ne kesiraj
 _MULTI = re.compile(
