@@ -1,0 +1,13 @@
+name: claims
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: No number without command+date+N (report only)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/gamai-io/claims-lint/main/claims_lint.py -o /tmp/cl.py
+          python3 /tmp/cl.py README.md
