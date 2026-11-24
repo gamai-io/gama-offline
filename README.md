@@ -59,3 +59,18 @@ Env: `ANSWER_CACHE_DB`, `ANSWER_CACHE_TTL`, `GAMACODE_HOME`, `GAMA_SKILLS_DIR`,
 LUMI MI250X guard (pre-LLM): false_success 19.7% raw -> 0/1,000; 10k rerun (2026-11-04) 1/10,000 (FAIL) — earlier 0/10,000 not reproduced,
 114.4 rps @ CONC=512. Repos: gama-fastpath, gama-retrieval, gama-shard.
 Related DOI: 10.5281/zenodo.23933835. Apache-2.0.
+
+## What it saves — measured on our own traffic (2026-11-23)
+
+| Metric | Value | Source |
+|---|---|---|
+| Model calls per day | 1,425 | harness token ledger |
+| Average prompt size | 10,277 tokens | same ledger |
+| Cost per call, DeepSeek Flash list ($0.15/$0.60 per M) | **$0.0019** | same ledger |
+| Cost of the same volume on GPT-4o-class pricing (3/10) | **$0.0368/call ≈ $1,575/month** | arithmetic, not measured on that provider |
+| Deterministic answer (PDV 17% on 2400) | **6.2 ms, 0 tokens** (vs 2.53 s and $0.0019 through the model) | `bench/bench_cache.py` |
+| Answer cache, cacheable queries | **66.7% hit, 100% warm, 0% on fresh data** | `bench/bench_cache.py` |
+
+**What this does not say:** these are our numbers, not a customer's bill. We do not quote a
+company-level saving until the layer runs inside one customer's traffic. A buyer who wants
+their own number gets the one-week audit instead of a projection.
