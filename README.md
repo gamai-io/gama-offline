@@ -12,7 +12,7 @@ reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib only, SQLite.
 
 | module | what it saves | measured |
 |---|---|---|
-| `cache.py` | identical repeat queries -> no LLM | get 1.7 ms (median 0.5 ms) vs ~4.75 s + cost; 66.7% hit on cacheable queries, **100% warm**, 0% on fresh/stock/price by design — `bench/bench_cache.py` |
+| `cache.py` | identical repeat queries -> no LLM | get 1.7 ms (median 0.5 ms) vs ~4.75 s + cost; on the shipped 10-query bench (3 rounds) 2 of 3 repeats hit — a loop artifact, not a traffic rate; 0% on fresh/stock/price by design — `bench/bench_cache.py` |
 | `cbr.py` | proven recipes for similar goals | find 7–9 ms; hit@3 1.0 (synthetic 1000) |
 | `skills.py` | direct skill match before model | index 4.3k skills; warm 1.4–4.5 ms |
 | `pretriage.py` | blocks catastrophic/high-risk before LLM | 70–206 µs; `rm -rf /` -> skip LLM |
@@ -23,7 +23,9 @@ open (never blocks normal work).
 
 ### What this does NOT save (read before quoting a number)
 - **No cross-user reuse.** Keys include the session id, so two different users
-  asking the same question both pay for a model call. Measured hit rate is
+  asking the same question both pay for a model call. The 10-query bench is a
+  loop, not traffic: it produces exactly two hits in three rounds (66.7%) while
+  the module counter on the same script says 44.4%. A real hit rate is
   therefore *per session*, not per company.
 - **Fresh data is never cached.** Stock levels, prices, balances, "today",
   "current" and any state-changing tool result go to the model every time.
@@ -32,7 +34,7 @@ open (never blocks normal work).
   served from cache, which is wrong in an ERP.
 - **TTL is 900 s.** Repeats spread over a day mostly miss.
 - Savings are `hit_rate × calls × cost_per_call`; they are only as good as the
-  measurement of *your* traffic. Do not quote 66.7% as a company-level saving.
+  measurement of *your* traffic. Do not quote 66.7% (or 44.4%) as a saving.
 
 
 ## Use
@@ -69,7 +71,7 @@ Related DOI: 10.5281/zenodo.23933835. Apache-2.0.
 | Cost per call, DeepSeek Flash list ($0.15/$0.60 per M) | **$0.0019** | same ledger |
 | Cost of the same volume on GPT-4o-class pricing (3/10) | **$0.0368/call ≈ $1,575/month** | arithmetic, not measured on that provider |
 | Deterministic answer (PDV 17% on 2400) | **6.2 ms, 0 tokens** (vs 2.53 s and $0.0019 through the model) | `bench/bench_cache.py` |
-| Answer cache, cacheable queries | **66.7% hit, 100% warm, 0% on fresh data** | `bench/bench_cache.py` |
+| Answer cache, shipped 10-query bench (3 rounds) | 2 of 3 repeats hit (the loop, not a traffic rate); the module's own counter measured 44.4% on the same script; 0% on fresh data | `bench/bench_cache.py` |
 
 **What this does not say:** these are our numbers, not a customer's bill. We do not quote a
 company-level saving until the layer runs inside one customer's traffic. A buyer who wants
