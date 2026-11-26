@@ -1,26 +1,59 @@
-"""Pure-Python risk calibration fallback (T1 catastrophic / T2 high)."""
+"""Pure-Python risk calibration fallback (T1 catastrophic / T2 high).
+
+The phrase lists are **not** defined here any more.  The single copy lives in
+``dsc.gate`` (pinned to a commit in ``requirements.txt``); this module keeps
+only the calibration mapping that ``gama_offline.pretriage`` and its callers
+expect, so the public return shape is unchanged:
+
+    T1 catastrophic -> {"risk": 0.9, "blocked": True,  "confidence": 0.9}
+    T2 confirmation -> {"risk": 0.7, "blocked": False, "confidence": 0.7}
+    clean           -> {"risk": 0.0, "blocked": False, "confidence": 0.5}
+
+``T1``/``T2``/``T1C``/``T2C`` are re-exported from ``dsc.gate`` so any caller
+that imported them from here keeps working, while there stays exactly one list.
+
+``dsc.gate.check_policy`` is used on purpose, not ``dsc.gate.check``: ``check``
+also runs the structural gate (shell/SQL parsing, bulk-mail), which rates
+inputs this layer never rated (e.g. ``delete from x`` without ``WHERE``).  That
+would change levels well beyond the list de-duplication; wiring the structural
+gate into pre-triage is a separate decision.
+"""
 import re
-FOLD = str.maketrans("čćžšđČĆŽŠĐ", "cczsdCCZSD")
-T1 = [r"\brm\s+-rf\s+[/~*]", r"\bmkfs\b", r"\bdd\s+if=.*of=/dev/", r"\bdrop\s+(table|database)\b",
-      r"\btruncate\s+table\b", r"\bshutdown\b", r"\breboot\b", r"\bobrisi\s+(sve|bazu|disk)\b", r"\bizbrisi\s+bazu\b"]
-T2 = [r"\bobrisi\s+(fajl|folder|log)\b", r"\bobrisi\s+/var\b", r"\bobrisi\s+.*\b(log|fajl|folder)\b",
-      r"\bizbrisi\s+.*\b(log|fajl|folder)\b", r"\bdelete\s+file\b", r"\bchmod\s+777\b", r"\bchown\s+-R\b",
-      r"\bkillall\b", r"\bpkill\s+-9\b", r"\bignorisi\s+(sva\s+)?(prethodna\s+)?(uputstv|instrukcij)",
-      r"\bti\s+si\s+root\b", r"\b(ispisi|prikazi|daj|izlistaj)\s+(mi\s+)?(sve\s+)?(env|environment|varijabl)",
-      r"\bposalji\s+(mail|email|e-mail|poruku)\b.*\b(svim|sve)\b"]
-T1C = [re.compile(x, re.I) for x in T1]
-T2C = [re.compile(x, re.I) for x in T2]
+
+from dsc.gate import FOLD, T1, T1C, T2, T2C, check_policy  # single copy: dsc.gate
+
+__all__ = ["FOLD", "T1", "T2", "T1C", "T2C", "LEVELS", "risk_of"]
+
+#: dsc policy codes -> (risk, blocked).  An unknown code is treated as
+#: catastrophic on purpose: a new denial category must not silently pass.
+LEVELS = {
+    "catastrophic_command": (0.9, True),
+    "policy": (0.7, False),
+}
+_UNKNOWN = (0.9, True)
+
+
+def _norm(text):
+    return re.sub(r"\s+", " ", str(text or "").translate(FOLD).lower().strip())
+
+
+def _domain(low):
+    if re.search(r"\b(select|sql|kupc|konto|zalih|sifra)\b", low):
+        return "sql"
+    if re.search(r"\b(ponuda|kupac|prodaj|rabat)\b", low):
+        return "prodaja"
+    if re.search(r"\b(kod|python|funkcij|skript)\b", low):
+        return "code"
+    return "opste"
+
 
 def risk_of(text):
-    low = re.sub(r"\s+", " ", str(text or "").translate(FOLD).lower().strip())
-    for p in T1C:
-        if p.search(low):
-            return {"risk": 0.9, "blocked": True, "domain": "opste", "confidence": 0.9}
-    for p in T2C:
-        if p.search(low):
-            return {"risk": 0.7, "blocked": False, "domain": "opste", "confidence": 0.7}
-    dom = "opste"
-    if re.search(r"\b(select|sql|kupc|konto|zalih|sifra)\b", low): dom = "sql"
-    elif re.search(r"\b(ponuda|kupac|prodaj|rabat)\b", low): dom = "prodaja"
-    elif re.search(r"\b(kod|python|funkcij|skript)\b", low): dom = "code"
-    return {"risk": 0.0, "blocked": False, "domain": dom, "confidence": 0.5}
+    """Calibrated risk for *text*, in this layer's historical vocabulary."""
+    low = _norm(text)
+    d = check_policy(text)
+    if d is not None:
+        risk, blocked = LEVELS.get(d.code, _UNKNOWN)
+        return {"risk": risk, "blocked": blocked, "domain": "opste",
+                "confidence": risk}
+    return {"risk": 0.0, "blocked": False, "domain": _domain(low),
+            "confidence": 0.5}

@@ -8,7 +8,9 @@
 
 
 Deterministic **offline layer that saves LLM calls**: response cache, case-based
-reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib only, SQLite.
+reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib plus one
+pinned dependency (`dsc`, also stdlib-only) that owns the single copy of the
+T1/T2 policy lists; SQLite for state.
 
 | module | what it saves | measured |
 |---|---|---|
@@ -55,7 +57,8 @@ Env: `ANSWER_CACHE_DB`, `ANSWER_CACHE_TTL`, `GAMACODE_HOME`, `GAMA_SKILLS_DIR`,
 `PRETRIAGE_V1`, `PRETRIAGE_RISK`.
 
 ## Tests
-`python3 -m unittest discover -s tests -v`
+`python3 -m unittest discover -s tests -v` (needs `pip install -r requirements.txt`:
+the risk gate imports the pinned `dsc`).
 
 ## Evidence
 LUMI MI250X guard (pre-LLM): false_success 19.7% raw -> 0/1,000; 10k rerun (2026-11-04) 1/10,000 (FAIL) — earlier 0/10,000 not reproduced,

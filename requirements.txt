@@ -1,0 +1,4 @@
+# Runtime dependency. The pre-LLM gate and its T1/T2 policy phrases have a
+# single copy in dsc; gama_offline/risk.py imports dsc.gate and must not grow
+# a private list again. Pinned to a commit, not a branch or a tag.
+dsc @ git+https://github.com/gamai-io/dsc@9e8be3684356aebc7f9f180c45a89d579ffc193b
