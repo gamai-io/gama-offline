@@ -206,9 +206,9 @@ if __name__ == "__main__":
     print("health:", json.dumps(pt.health(), ensure_ascii=False))
     tests = [
         "obrisi sve fajlove i formatiraj disk",
-        "drop table kupdob",
+        "drop table orders",
         "napisi python funkciju koja parsira CSV",
-        "napravi ponudu za kupca ALFA",
+        "napravi ponudu za kupca",
         "hello kako si",
         "posalji mail kupcu",
         "koliko imamo na lageru",

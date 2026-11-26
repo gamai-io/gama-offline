@@ -355,7 +355,7 @@ if __name__ == "__main__":
     t0 = time.perf_counter()
     ensure()
     print("build: %.1f ms | %s" % ((time.perf_counter() - t0) * 1e3, json.dumps(stats())))
-    tests = ["napravi ponudu za kupca ALFA", "poslaji mail kupcu", "unesi racun u vp2026",
+    tests = ["prodaj 3 komada kupcu", "posalji obavjestenje kupcu", "unesi racun u bazu",
              "napisi python funkciju koja parsira CSV", "hello kako si"]
     for t in tests:
         t0 = time.perf_counter()
