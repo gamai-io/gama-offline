@@ -6,12 +6,23 @@ SQLite: %USERPROFILE%\\gamacode\\cases.db
 - `find(goal, app="", k=2)`: slični uspješni recepti (ok>=1), sortirano po ok desc + sličnosti.
 - `add(goal, steps, ok=True, app="")`: snimi trajektoriju (steps = lista {tool,args,res}).
 - `promote(min_ok=5)`: ako neki (app,intent) ima ok>=min_ok → vrati listu za promociju u skill.
+
+INTENT KEY (2026-11-26): ``intent`` je ``dsc.cachekey.request_key`` nad
+normalizovanim ciljem (``dsc.normalize.content_tokens``, redoslijed sačuvan) sa
+``context={"kind": "cbr"}``.  Stari ključ je bio "prvih 6 sortiranih riječi",
+pa su različiti ciljevi sa istim riječima padali u isti case (npr. tri
+višekoračna zadatka koja dijele "1 2 3 4 5 6").  Sada: isti cilj -> isti id,
+različit cilj -> različit id.  ``find()`` i dalje koristi ``_norm`` (Jaccard
+preklapanje) jer mijenjanje skora bi promijenilo recall bez potrebe.
 """
 import json
 import os
 import re
 import sqlite3
 import time
+
+from dsc.cachekey import request_key
+from dsc.normalize import content_tokens
 
 HOME = os.environ.get("GAMACODE_HOME") or os.path.join(os.path.expanduser("~"), "gamacode")
 DB = os.path.join(HOME, "cases.db")
@@ -40,8 +51,15 @@ def _conn():
 
 
 def _intent(goal):
-    w = _norm(goal)
-    return " ".join(sorted(set(w))[:6])
+    """Stable case id: v2 sha256 over the normalised goal, kind="cbr".
+
+    Two *different* goals may still share an id only when their normalised
+    token sequence is identical (word order is significant), which is a recall
+    decision — unlike the old "first six sorted words", which merged goals that
+    merely used the same word set.
+    """
+    return request_key(goal, normalized=" ".join(content_tokens(goal)),
+                       context={"kind": "cbr"})
 
 
 def find(goal, app="", k=2):

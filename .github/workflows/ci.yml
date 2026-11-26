@@ -12,5 +12,5 @@ jobs:
       # (pinned commit in requirements.txt); pure-stdlib package, so this is a
       # few seconds.
       - run: python3 -m pip install --disable-pip-version-check -r requirements.txt
-      - run: python3 -c "from dsc.cachekey import SCHEME, request_key; assert SCHEME == 'v2'"
+      - run: python3 -c "from dsc.cachekey import SCHEME, request_key; from dsc.cachepolicy import fresh; assert SCHEME == 'v2' and fresh('lager 100011')"
       - run: python3 -m unittest discover -s tests -v

@@ -10,7 +10,7 @@
 Deterministic **offline layer that saves LLM calls**: response cache, case-based
 reasoning (CBR), skill matcher, and pre-triage risk gate. Stdlib plus one
 pinned dependency (`dsc`, also stdlib-only) that owns the single copy of the
-T1/T2 policy lists; SQLite for state.
+T1/T2 policy lists, the cache key and the cacheability rules; SQLite for state.
 
 | module | what it saves | measured |
 |---|---|---|
@@ -30,8 +30,20 @@ JSON object (normalised text, tenant, sid, context). It replaced the old
 in the text or the sid. **No rows are migrated**: the first run after the
 change misses every old entry (0% hit rate) and old rows age out through
 TTL/MAX. That is deliberate — a stale or cross-tenant hit is worse than a
-miss. `fresh()` and `cacheable()` are unchanged and still run before any
-write.
+miss. `fresh()` and `cacheable()` are still the names callers use, but they now
+delegate to `dsc.cachepolicy` (`FRESH_RULES`, `MULTI_STEP_RULES`,
+`MUTATING_TOOLS`, `block_reason`), the same rule table fastpath uses. Clock
+questions (`koliko je sati`, `koje je vrijeme`) are freshness misses too; the
+old regex did not catch them.
+
+### CBR intent key (scheme `v2`)
+`cbr._intent` is also `dsc.cachekey.request_key`, over
+`dsc.normalize.content_tokens(goal)` with `context={"kind": "cbr"}`. The old
+key — first six sorted unique words — gave three unrelated goals in our own
+`cases.db` the same id `1 2 3 4 5 6`. Now the same goal gets the same id and a
+different goal (including a different word order) gets a different one. Old
+`cases.intent` values are not migrated: `promote()` reports old plain-text
+buckets and new `v2:` buckets separately until old rows age out.
 
 ### What this does NOT save (read before quoting a number)
 - **No cross-user reuse.** Keys include the session id, so two different users

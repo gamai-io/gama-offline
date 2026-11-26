@@ -2,6 +2,26 @@ import os, sys, tempfile, unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from gama_offline import cache, cbr, skills, pretriage, risk
 
+# Three real goals from ~/gamacode/cases.db (ids 659, 660, 990).  Under the old
+# "first six sorted unique words" intent key all three were "1 2 3 4 5 6".
+REAL_CORPUS_COLLISION = (
+    "U /tmp/multi napravi: (1) dohvati kurs EUR->BAM preko free_api, "
+    "(2) dohvati naslov sa https://example.com, (3) napravi QR kod za "
+    "https://example.com u /tmp/multi/qr.png, (4) napravi Word "
+    "/tmp/multi/izvjestaj.docx sa kursom i naslovom, (5) napravi PDF "
+    "/tmp/multi/izvjestaj.pdf, (6) provjeri sa ls -l da sva 3 fajla "
+    "postoje i navedi velicine.",
+    "Napravi provjeru flote u /tmp/multi: (1) pozovi fleet who, "
+    "(2) pozovi hc who na kuca, (3) napravi screenshot dispecera, "
+    "(4) napravi glasovnu poruku tts tekst flota provjerena u "
+    "/tmp/multi/flota.mp3, (5) dohvati https://example.com, "
+    "(6) zabiljezi kratku lekciju u memoriju (brain_write) o tome da je "
+    "provjera prosla, (7) sve to sazi mi u /tmp/multi/flota.md i "
+    "potvrdi velicine.",
+    "CSV: a,b 1,2 3,4 5,6 Koliki je zbir kolone b? Odgovori samo brojem.",
+)
+
+
 class T(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -78,6 +98,47 @@ class T(unittest.TestCase):
         cbr.add("napravi ponudu za kupca", [{"tool": "ponuda"}], ok=True)
         hits = cbr.find("napravi ponudu", k=1)
         self.assertTrue(hits)
+
+    def test_cbr_intent_is_a_stable_v2_key(self):
+        """Same goal -> same id, and the id leaks no goal text."""
+        k = cbr._intent("Napravi ponudu za kupca")
+        self.assertTrue(k.startswith("v2:"), k)
+        self.assertEqual(len(k), 3 + 64)
+        self.assertEqual(k, cbr._intent("napravi   PONUDU za kupca"))
+        self.assertEqual(k, cbr._intent("Napravi ponudu za kupca"))
+        self.assertNotIn("ponud", k)
+        # word order is significant: a reordered goal is a different goal
+        self.assertNotEqual(cbr._intent("posalji mail kupcu"),
+                            cbr._intent("kupcu posalji mail"))
+
+    def test_cbr_legacy_key_collided_on_real_corpus_goals(self):
+        """Three real cases from ~/gamacode/cases.db shared the old intent.
+
+        The old ``_intent`` was the first six sorted unique words, so these
+        three unrelated multi-step goals all got ``"1 2 3 4 5 6"`` and were
+        promoted as one recipe.  The new key must keep them apart.
+        """
+        import re
+
+        def legacy_intent(goal):
+            s = re.sub(r"[^\w\s]", " ", (goal or "").lower())
+            w = [x for x in s.split() if x and x not in cbr.STOP]
+            return " ".join(sorted(set(w))[:6])
+
+        goals = REAL_CORPUS_COLLISION
+        self.assertEqual(len({legacy_intent(g) for g in goals}), 1)
+        self.assertEqual(legacy_intent(goals[0]), "1 2 3 4 5 6")
+        self.assertEqual(len({cbr._intent(g) for g in goals}), 3)
+        for g in goals:
+            self.assertEqual(cbr._intent(g), cbr._intent(g))
+
+    def test_cbr_promote_does_not_merge_distinct_goals(self):
+        cbr.DB = os.path.join(self.tmp, "promote.db")
+        for g in REAL_CORPUS_COLLISION:
+            cbr.add(g, [{"tool": "x"}], ok=True)
+        promoted = cbr.promote(min_ok=1)
+        self.assertEqual(len(promoted), 3, promoted)
+        self.assertEqual(cbr.stats()["cases"], 3)
     def test_skills(self):
         d = os.path.join(self.tmp, "skills", "gama-izvjestaj")
         os.makedirs(d)

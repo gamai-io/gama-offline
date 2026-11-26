@@ -34,34 +34,17 @@ import threading
 import time
 
 from dsc.cachekey import request_key
+from dsc.cachepolicy import block_reason, fresh as _policy_fresh
 
 _DB = os.environ.get("ANSWER_CACHE_DB", os.path.join(os.path.expanduser("~"), ".gama", "answer_cache.db"))
 TTL = float(os.environ.get("ANSWER_CACHE_TTL", "900"))
 MAXN = int(os.environ.get("ANSWER_CACHE_MAX", "2000"))
 
 _WS = re.compile(r"\s+")
-_FRESH = re.compile(
-    r"(?i)(pretrazi|search|cijena|cijenu|cijene|najnovij|najnove|online|na internetu|na netu|"
-    r"koliko ko[s\u0161]ta|trenutno|danas|ju[c\u010d]e|sada|sada[s\u0161]nj|kurs|prognoza|vremenska|"
-    r"stanje na tr[z\u017ei]|berza|akcije|kripto|nadzor|prozor|screenshot|prebaci|ekran|flota|"
-    # ERP_FRESH_V2: zalihe/stanje/saldo se mijenjaju svakim ulazom/izlazom -> nikad iz kesa
-    r"zalih|lager|na stanju|stanje robe|stanje artikla|saldo|dugovanj|potra[z\u017e]ivanj|"
-    r"koli[c\u010d]in|kolicin|zadnji ulaz|zadnja cijena|trenutna cijena)")  # NADZOR_FRESH_V1 + ERP_FRESH_V2
 
-
-# CACHE_MULTI_GUARD: visekoracni upit (i/pa/zatim + akcioni glagol) -> ne kesiraj
-_MULTI = re.compile(
-    r"(?i)(?:\s+i\s+|\s+pa\s+|\s+zatim\s+|\s+potom\s+|\s+onda\s+|;|\s+&\s+)"
-    r".{0,80}?\b(otvori|pokreni|napi[s\u0161]i|po[s\u0161]alji|posalji|ukucaj|klikni|napravi|"
-    r"kreiraj|obri[s\u0161]i|pusti|prebaci|dodaj|unesi|instaliraj)\b")
-
-# alati koji MIJENJAJU stanje -> njihov odgovor se NE kesira (replay nije bezbjedan)
-_MUTATING = {
-    "mail", "email", "sms", "whatsapp", "write", "bash", "python", "masina", "racunar",
-    "postis", "otvori", "pokreni", "obrisi", "obri\u0161i", "kopiraj", "premjesti",
-    "instaliraj", "deploy", "github", "zakazi", "obavijesti", "nauci_skill", "self_mod",
-    "tring", "kasa", "rdp",
-}
+# The freshness/multi-step/mutating rules are data in dsc.cachepolicy: one
+# copy for gama-offline and gama-fastpath.  ``fresh()`` and ``cacheable()``
+# stay public here because callers and tests already use them; they delegate.
 
 _lock = threading.Lock()
 _conn = None
@@ -106,39 +89,22 @@ def _key(sid, q) -> str:
 
 
 def fresh(q: str) -> bool:
-    return bool(_FRESH.search(q or ""))
-
-
-def _tools(res) -> list:
-    out = []
-    for x in (res.get("tool_log") or []):
-        if isinstance(x, dict) and x.get("tool"):
-            out.append(str(x["tool"]).lower())
-    return out
+    """True when dsc.cachepolicy forbids replaying an answer for ``q``."""
+    return _policy_fresh(q)
 
 
 def cacheable(res, q: str) -> bool:
-    if not isinstance(res, dict):
-        return False
-    c = res.get("content")
-    if not c or not isinstance(c, str) or len(c) < 15:
-        return False
-    if res.get("stopped"):
-        return False
-    low = c.lower()
-    if "(greska" in low or "error:" in low or "prekinuto nakon" in low:
-        _stats["skip_err"] += 1
-        return False
-    if fresh(q):
+    """Delegate to dsc.cachepolicy; keep this module's counters here."""
+    reason = block_reason(res, q)
+    if reason == "fresh":
         _stats["skip_fresh"] += 1
-        return False
-    if any(t in _MUTATING for t in _tools(res)):
+    elif reason == "mutating":
         _stats["skip_mut"] += 1
-        return False
-    if _MULTI.search(q or ""):  # CACHE_MULTI_GUARD
+    elif reason == "error":
+        _stats["skip_err"] += 1
+    elif reason == "multi_step":
         _stats["skip_multi"] = _stats.get("skip_multi", 0) + 1
-        return False
-    return True
+    return reason is None
 
 
 def get(sid, q):

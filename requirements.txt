@@ -1,5 +1,7 @@
-# Runtime dependency. The pre-LLM gate, its T1/T2 policy phrases and the cache
-# key have a single copy in dsc; gama_offline/risk.py imports dsc.gate and
-# cache.py imports dsc.cachekey, and must not grow a private copy again.
+# Runtime dependency. The pre-LLM gate, its T1/T2 policy phrases, the cache key
+# and the cacheability/freshness rules have a single copy in dsc;
+# gama_offline/risk.py imports dsc.gate, cache.py imports dsc.cachekey +
+# dsc.cachepolicy and cbr.py imports dsc.cachekey + dsc.normalize, and none of
+# them may grow a private copy again.
 # Pinned to a commit, not a branch or a tag.
-dsc @ git+https://github.com/gamai-io/dsc@1c00fe9689a1e40d724e593ea26f712c51f2dc6e
+dsc @ git+https://github.com/gamai-io/dsc@7c433d59c848d2853abda639753bcec7042890cf
