@@ -23,6 +23,16 @@ Safety rules (same as production): never cache fresh/actionable answers; never
 cache state-changing tool results; per-session keys; TTL 900 s; risk gate fails
 open (never blocks normal work).
 
+### Cache key (scheme `v2`)
+`cache._key` is `dsc.cachekey.request_key`: `v2:` + SHA-256 over one canonical
+JSON object (normalised text, tenant, sid, context). It replaced the old
+`md5(sid|norm(q))`, which had no tenant and could collide when a `|` appeared
+in the text or the sid. **No rows are migrated**: the first run after the
+change misses every old entry (0% hit rate) and old rows age out through
+TTL/MAX. That is deliberate — a stale or cross-tenant hit is worse than a
+miss. `fresh()` and `cacheable()` are unchanged and still run before any
+write.
+
 ### What this does NOT save (read before quoting a number)
 - **No cross-user reuse.** Keys include the session id, so two different users
   asking the same question both pay for a model call. The 10-query bench is a

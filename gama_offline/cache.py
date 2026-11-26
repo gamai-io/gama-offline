@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gama_answer_cache.py — DEDUP/CACHE PRE-FILTER (md5 identicnih upita -> bez LLM).
+gama_answer_cache.py — DEDUP/CACHE PRE-FILTER (identicnih upita -> bez LLM).
 
 IDEA: ako je korisnik poslao IDENTICAN upit (isti sid + isti tekst, normalizovano)
 u zadnjih TTL sekundi -> vrati kesirani odgovor BEZ LLM poziva (~4.7 s + trosak).
+
+KLJUC: jedina implementacija je ``dsc.cachekey.request_key`` (sha256 nad
+kanonskim JSON-om: tekst + tenant + sid + kontekst, prefiks ``v2:``). Ranije je
+ovdje bio ``md5(sid|norm(q))`` — md5, bez tenanta i bez strukture. Nema migracije
+redova: prvi run poslije promjene promasuje SVE stare kljuceve (0% hit) i to je
+namjerno, jer je pogresan hit gori od promasaja. Stari redovi ispadnu kroz TTL/MAX.
 
 BEZBJEDNOST (da se NE pokvari ponasanje):
   * Ne kesiraj "svjeze" upite (pretrazi/cijena/najnovij/danas/trenutno/kurs/prognoza).
@@ -20,13 +26,14 @@ FLAG: ANSWER_CACHE_V1=0 gasi (default UKLJUCEN).
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import sqlite3
 import threading
 import time
+
+from dsc.cachekey import request_key
 
 _DB = os.environ.get("ANSWER_CACHE_DB", os.path.join(os.path.expanduser("~"), ".gama", "answer_cache.db"))
 TTL = float(os.environ.get("ANSWER_CACHE_TTL", "900"))
@@ -89,7 +96,13 @@ def _norm(q: str) -> str:
 
 
 def _key(sid, q) -> str:
-    return hashlib.md5((str(sid or "") + "|" + _norm(q)).encode("utf-8", "replace")).hexdigest()
+    """``v2:`` sha256 from dsc.cachekey; sid stays the scope, not a wildcard.
+
+    No legacy md5 read path: a pre-v2 row cannot be produced by this function,
+    so the lookup misses and the row ages out through TTL/MAX.
+    """
+    return request_key(q, normalized=_norm(q), session=str(sid or ""),
+                       context={"app": "gama-offline"})
 
 
 def fresh(q: str) -> bool:

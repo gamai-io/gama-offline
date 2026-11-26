@@ -178,13 +178,20 @@ class TestSingleList(unittest.TestCase):
         m = re.search(r"^dsc @ git\+https://github\.com/gamai-io/dsc@([0-9a-f]{40})$",
                       req, re.M)
         self.assertIsNotNone(m, "dsc must be pinned to a full commit sha")
-        self.assertEqual(m.group(1), "9e8be3684356aebc7f9f180c45a89d579ffc193b")
+        # Shape, not a literal sha: the literal turned every dsc bump into a
+        # test edit and still could not prove the pin resolves. What matters
+        # is that the resolved dsc has the API (see test_installed_*).
 
     def test_installed_dsc_is_new_enough(self):
-        # A pin that predates dsc/gate.py would import-fail; a pin without the
-        # two additions would silently narrow the gate. Both fail here.
+        # A pin that predates dsc/gate.py or dsc/cachekey.py would import-fail;
+        # a pin without the two additions would silently narrow the gate. Both
+        # fail here.
         self.assertIn(NEW_ENV, gate.T2)
         self.assertIn(NEW_ROOT, gate.T2)
+        from dsc.cachekey import SCHEME, request_key  # noqa: F401
+        self.assertEqual(SCHEME, "v2")
+        from gama_offline import cache
+        self.assertTrue(cache._key("s", "zdravo").startswith("v2:"))
 
 
 class TestDiffIsExactlyTheTwoAdditions(unittest.TestCase):
